@@ -50,7 +50,7 @@ func Start(addr string) {
 }
 
 // Start starts a webserver to process RockBLOCK messages received at /message
-func StartWithPrometheus(addr string) {
+func StartWithPrometheus(addr string, withTestData bool) {
 	popCount = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "pipecyte_pop_total",
@@ -59,13 +59,15 @@ func StartWithPrometheus(addr string) {
 		[]string{"pop"},
 	)
 
-	go func() {
-		for {
-			log.Printf("adding 12 prochloro\n")
-			popCount.WithLabelValues("prochloro").Add(12.0)
-			time.Sleep(2 * time.Second)
-		}
-	}()
+	if withTestData {
+		go func() {
+			for {
+				log.Printf("adding 12 prochloro\n")
+				popCount.WithLabelValues("prochloro").Add(12.0)
+				time.Sleep(30 * time.Second)
+			}
+		}()
+	}
 
 	http.HandleFunc("/", handleJSONRockBlockMessage(messageCallback))
 	http.Handle("/metrics", promhttp.Handler())

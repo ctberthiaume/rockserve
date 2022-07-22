@@ -30,9 +30,12 @@ import (
 	"rockserve/serve"
 )
 
+const version = "v0.0.1"
+
 var (
-	addr     string
-	withProm bool
+	addr         string
+	withProm     bool
+	withTestData bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -40,12 +43,13 @@ var rootCmd = &cobra.Command{
 	Use:   "rockserve",
 	Short: "A brief description of your application",
 	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Fprintf(os.Stderr, "rockserve version %v\n", version)
 		fmt.Fprintf(os.Stderr, "starting server at %v\n", addr)
 		if withProm {
 			fmt.Fprintf(os.Stderr, "using Prometheus instrumentation\n")
-			serve.StartWithPrometheus(addr)
+			serve.StartWithPrometheus(addr, withTestData)
 		} else {
-			serve.StartWithPrometheus(addr)
+			serve.Start(addr)
 		}
 		fmt.Fprintln(os.Stderr, "closing server")
 	},
@@ -60,4 +64,5 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&addr, "address", "a", ":8100", "server bind address")
 	rootCmd.PersistentFlags().BoolVarP(&withProm, "prometheus", "p", false, "Instrument with Prometheus")
+	rootCmd.PersistentFlags().BoolVarP(&withTestData, "testdata", "t", false, "Output test Prometheus data")
 }
