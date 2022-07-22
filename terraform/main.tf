@@ -21,7 +21,7 @@ resource "aws_key_pair" "deployer" {
 
 resource "aws_security_group" "main" {
   name = "allow_rockblock_ssh_https"
-  description = "Allow SSH and HTTPS to RockBLOCK webhook server"
+  description = "Allow SSH and HTTP/S to RockBLOCK webhook server"
   egress {
     cidr_blocks      = ["0.0.0.0/0", ]
     protocol         = -1
@@ -29,10 +29,16 @@ resource "aws_security_group" "main" {
     to_port          = 0
   }
   ingress {
-    cidr_blocks      = ["109.74.196.135/32", "212.71.235.32/32"]
+    cidr_blocks      = ["0.0.0.0/0", ]
     protocol         = "tcp"
     from_port        = 80
     to_port          = 80
+  }
+  ingress {
+    cidr_blocks      = ["0.0.0.0/0", ]
+    protocol         = "tcp"
+    from_port        = 443
+    to_port          = 443
   }
   ingress {
     cidr_blocks      = ["0.0.0.0/0", ]

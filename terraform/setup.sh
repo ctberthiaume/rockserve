@@ -151,14 +151,24 @@ sudo apt install caddy libnss3-tools
 sudo HOME=~caddy caddy trust
 
 echo "Install Caddyfile and reload daemon"
+# Use port 80 for bare IP, otherwise leave domain name alone
+if [[ "${publicaddr}" =~ [a-zA-Z][a-zA-Z]$ ]]; then
+  publicaddr2="${publicaddr}"
+else
+  publicaddr2="${publicaddr}:80"
+fi
 cat << EOF | sudo tee /etc/caddy/Caddyfile
-${publicaddr}:80 {
+${publicaddr2} {
 	handle_path /message {
 		rewrite * /message
 		reverse_proxy localhost:8080
 	}
+  handle_path /health {
+		rewrite * /health
+		reverse_proxy localhost:8080
+	}
 	handle_path /* {
-		respond 403
+		respond 404
 	}
 }
 EOF

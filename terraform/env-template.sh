@@ -5,3 +5,5 @@ export TF_VAR_prom_user=api-user
 export TF_VAR_prom_password=api-secret
 export TF_VAR_rockserve_binary=rockserve-binary
 export TF_VAR_eip_id=elastic-ip-allocation-id
+# Optional
+#export TF_VAR_public_hostname=my-hostname

@@ -33,6 +33,12 @@ type JsonData struct {
 	Transmit_time          string
 }
 
+type MsgClaims struct {
+	jwt.StandardClaims
+	Data  string `json:"data"`
+	Momsn string `json:"momsn"`
+}
+
 var (
 	popCount        *prometheus.GaugeVec
 	popNames        []string = []string{"croco", "prochloro", "synecho"}
@@ -43,7 +49,8 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlaWAVJfNWC4XfnRx96p9cztBcdQV6l8aKmzA
 
 // Start starts a webserver to process RockBLOCK messages received at /message
 func Start(addr string) {
-	http.HandleFunc("/", handleJSONRockBlockMessage(func(msg []byte) {
+	http.HandleFunc("/health", handleHealthCheck)
+	http.HandleFunc("/message", handleJSONRockBlockMessage(func(msg []byte) {
 		log.Printf("message = %q\n", msg)
 	}))
 	http.ListenAndServe(addr, nil)
@@ -69,14 +76,22 @@ func StartWithPrometheus(addr string, withTestData bool) {
 		}()
 	}
 
-	http.HandleFunc("/", handleJSONRockBlockMessage(messageCallback))
+	http.HandleFunc("/health", handleHealthCheck)
+	http.HandleFunc("/message", handleJSONRockBlockMessage(messageCallback))
 	http.Handle("/metrics", promhttp.Handler())
 	http.ListenAndServe(addr, nil)
 }
 
+func handleHealthCheck(w http.ResponseWriter, req *http.Request) {
+	log.Printf("new request from %v for %v\n", req.RemoteAddr, req.URL.Path)
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/text")
+	w.Write([]byte("healthy"))
+}
+
 func handleJSONRockBlockMessage(cb func([]byte)) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
-		log.Printf("new request from %v\n", req.RemoteAddr)
+		log.Printf("new request from %v for %v\n", req.RemoteAddr, req.URL.Path)
 		body, err := io.ReadAll(req.Body)
 		if err != nil {
 			log.Printf("%v\n", err)
@@ -87,20 +102,20 @@ func handleJSONRockBlockMessage(cb func([]byte)) func(w http.ResponseWriter, req
 		err = json.NewDecoder(bytes.NewReader(body)).Decode(&j)
 		if err != nil {
 			log.Printf("could not decode JSON body: %v\n", err)
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		err = verifyToken([]byte(j.JWT))
+		token, err := verifyToken([]byte(j.JWT))
 		if err != nil {
 			log.Println(err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		log.Printf("JWT is valid")
 		w.WriteHeader(http.StatusOK)
 
-		msg, err := hex.DecodeString(j.Data)
+		msg, err := hex.DecodeString(token.Claims.(*MsgClaims).Data)
 		if err != nil {
 			log.Println(err)
 			return
@@ -123,11 +138,11 @@ func messageCallback(msg []byte) {
 	}
 }
 
-func verifyToken(token []byte) error {
+func verifyToken(token []byte) (t *jwt.Token, err error) {
 	// Trim trailing whitespace
 	token = regexp.MustCompile(`\s*$`).ReplaceAll(token, []byte{})
 
-	parsed, err := jwt.Parse(string(token), func(t *jwt.Token) (interface{}, error) {
+	parsed, err := jwt.ParseWithClaims(string(token), &MsgClaims{}, func(t *jwt.Token) (interface{}, error) {
 		key, err := jwt.ParseRSAPublicKeyFromPEM(rockBlockPubKey)
 		if err != nil {
 			return nil, err
@@ -135,13 +150,13 @@ func verifyToken(token []byte) error {
 		return key, nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if !parsed.Valid {
-		return fmt.Errorf("JWT is invalid")
+		return nil, fmt.Errorf("JWT is invalid")
 	}
-	return nil
+	return parsed, nil
 }
 
 func countsFromMsg(msg []byte) (counts []int, err error) {
